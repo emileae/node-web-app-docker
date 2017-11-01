@@ -14,7 +14,7 @@ var handleError = (err) => {
 // seems to work since it starts listening
 // trying to find how to trigger the running node... doesnt seem to work on locahost
 
-const rabbitHost = "localhost"//"172.18.0.1";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
+const rabbitHost = "localhost";//"172.18.0.1";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
 
 // Enable CORS
 app.use(function(req, res, next) {
@@ -25,7 +25,7 @@ app.use(function(req, res, next) {
 
 app.get('/', (req, res) => {
   console.log("testing 1 2 3");
-  res.send("Helol wordl");
+  res.send("Hello wordl");
 })
 
 app.get('/print/:message', (req, res) => {
@@ -67,17 +67,17 @@ app.get('/api/v1/rabbit/:message', (req, res) => {
 });
 
 // listening for rabbitmq messages??
-amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
-  console.log("ERR: ", err);
-  conn.createChannel(function(err, ch) {
-    var q = 'hello';
-    ch.assertQueue(q, {durable: false});
-    console.log(`... [*] Waiting for messages in ${q}. To exit press CTRL+C `);
-    ch.consume(q, function(msg) {
-      console.log(" [x] Received %s", msg.content.toString());
-    }, {noAck: true});
-  });
-});
+// amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
+//   console.log("ERR: ", err);
+//   conn.createChannel(function(err, ch) {
+//     var q = 'hello';
+//     ch.assertQueue(q, {durable: false});
+//     console.log(`... [*] Waiting for messages in ${q}. To exit press CTRL+C `);
+//     ch.consume(q, function(msg) {
+//       console.log(" [x] Received %s", msg.content.toString());
+//     }, {noAck: true});
+//   });
+// });
 
 // app.listen(process.env.PORT || 3000);
 app.listen(PORT, HOST);
