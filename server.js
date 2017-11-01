@@ -14,7 +14,7 @@ var handleError = (err) => {
 // seems to work since it starts listening
 // trying to find how to trigger the running node... doesnt seem to work on locahost
 
-const rabbitHost = "172.18.0.2";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
+const rabbitHost = "172.18.0.1";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
 
 // Enable CORS
 app.use(function(req, res, next) {
