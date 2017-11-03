@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 const express = require('express');
 const amqp = require('amqplib/callback_api');
 const app = express();
@@ -14,7 +16,7 @@ var handleError = (err) => {
 // seems to work since it starts listening
 // trying to find how to trigger the running node... doesnt seem to work on locahost
 
-const rabbitHost = process.env.rabbitIP || "172.18.0.2";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
+const rabbitHost = process.env.RABBIT_IP || "172.18.0.2";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
 
 // Enable CORS
 app.use(function(req, res, next) {
@@ -44,27 +46,31 @@ app.get('/api/v1/rabbit/:message', (req, res) => {
   try{
 
     amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
-      console.log("Rabbit result? ", err);
+      console.log("Rabbit result? conn:", conn);  
+      console.log("Rabbit result? err:", err);
 
-      console.log("connected to rabbitMQ ");
-      conn.createChannel(function(err, ch) {
-        var q = 'hello';
-        // var msg = 'Yoyo World!';
+      if (conn){
+        console.log("connected to rabbitMQ ");
+        conn.createChannel(function(err, ch) {
+          var q = 'hello';
 
-        ch.assertQueue(q, {durable: false});
-        // Note: on Node 6 Buffer.from(msg) should be used
-        ch.sendToQueue(q, new Buffer(rabbitMessage));
-        console.log(" [x] Sent %s", rabbitMessage);
-      });
-      setTimeout(function() {
-        conn.close();
-        // process.exit(0)
-      },
-      500);
+          ch.assertQueue(q, {durable: false});
+          // Note: on Node 6 Buffer.from(msg) should be used
+          ch.sendToQueue(q, new Buffer(rabbitMessage));
+          console.log(" [x] Sent %s", rabbitMessage);
+        });
+        setTimeout(function() {
+          conn.close();
+          // process.exit(0)
+        },
+        500);
+        res.send(`rabbit message sent: ${rabbitMessage}`);
+      }else{
+        throw "couldn't connect to RabbitMQ conn is falsy";
+        res.send(`rabbit NOT message sent: ${rabbitMessage}`);
+      }
 
     });
-
-    res.send(`rabbit message sent: ${rabbitMessage}`);
 
   }catch(err){
     console.log("failed to connect to ampq", err);
@@ -79,13 +85,22 @@ function ConnectToRabbit(){
     maxConnectionAttempts =- 1;
     // listening for rabbitmq messages??
     amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
-      console.log("ERR: ", err);
+
+      console.log("Rabbit result? conn:", conn);  
+      console.log("Rabbit result? err:", err);
+      
       conn.createChannel(function(err, ch) {
         var q = 'hello';
         ch.assertQueue(q, {durable: false});
         console.log(`... [*] Waiting for messages in ${q}. To exit press CTRL+C `);
         ch.consume(q, function(msg) {
           console.log(" [x] Received %s", msg.content.toString());
+          
+          fs.writeFile('test-file.txt', msg.content.toString(), function (err) {
+            if (err) return console.log(err);
+            console.log('wrote test-file.txt');
+          });
+
         }, {noAck: true});
       });
     });
@@ -98,6 +113,8 @@ function ConnectToRabbit(){
     }
   }
 }
+// connect to start listening
+ConnectToRabbit();
 
 // app.listen(process.env.PORT || 3000);
 app.listen(PORT, HOST);
