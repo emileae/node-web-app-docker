@@ -96,10 +96,10 @@ function ConnectToRabbit(){
         ch.consume(q, function(msg) {
           console.log(" [x] Received %s", msg.content.toString());
           
-          fs.writeFile('test-file.txt', msg.content.toString(), function (err) {
-            if (err) return console.log(err);
-            console.log('wrote test-file.txt');
-          });
+          // fs.writeFile('test-file.txt', msg.content.toString(), function (err) {
+          //   if (err) return console.log(err);
+          //   console.log('wrote test-file.txt');
+          // });
 
         }, {noAck: true});
       });
