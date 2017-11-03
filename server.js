@@ -25,7 +25,7 @@ app.use(function(req, res, next) {
 
 app.get('/', (req, res) => {
   console.log("testing 1 2 3");
-  res.send("Hello wordl");
+  res.send("Hello kubernetes world");
 })
 
 app.get('/print/:message', (req, res) => {
@@ -41,43 +41,63 @@ app.get('/api/v1/rabbit/:message', (req, res) => {
   console.log("RabbitMQ message: ", rabbitMessage);
   console.log(`Rabbit host: --> amqp://${rabbitHost}`);
 
-  amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
-    console.log("Rabbit result? ", err);
+  try{
 
-    console.log("connected to rabbitMQ ");
-    conn.createChannel(function(err, ch) {
-      var q = 'hello';
-      // var msg = 'Yoyo World!';
+    amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
+      console.log("Rabbit result? ", err);
 
-      ch.assertQueue(q, {durable: false});
-      // Note: on Node 6 Buffer.from(msg) should be used
-      ch.sendToQueue(q, new Buffer(rabbitMessage));
-      console.log(" [x] Sent %s", rabbitMessage);
+      console.log("connected to rabbitMQ ");
+      conn.createChannel(function(err, ch) {
+        var q = 'hello';
+        // var msg = 'Yoyo World!';
+
+        ch.assertQueue(q, {durable: false});
+        // Note: on Node 6 Buffer.from(msg) should be used
+        ch.sendToQueue(q, new Buffer(rabbitMessage));
+        console.log(" [x] Sent %s", rabbitMessage);
+      });
+      setTimeout(function() {
+        conn.close();
+        // process.exit(0)
+      },
+      500);
+
     });
-    setTimeout(function() {
-      conn.close();
-      // process.exit(0)
-    },
-    500);
 
-  });
+    res.send(`rabbit message sent: ${rabbitMessage}`);
 
-  res.send(`rabbit message sent: ${rabbitMessage}`);
+  }catch(err){
+    console.log("failed to connect to ampq", err);
+    res.send(`failed to send rabbit message: ${rabbitMessage}`);
+  }
 
 });
 
-// listening for rabbitmq messages??
-amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
-  console.log("ERR: ", err);
-  conn.createChannel(function(err, ch) {
-    var q = 'hello';
-    ch.assertQueue(q, {durable: false});
-    console.log(`... [*] Waiting for messages in ${q}. To exit press CTRL+C `);
-    ch.consume(q, function(msg) {
-      console.log(" [x] Received %s", msg.content.toString());
-    }, {noAck: true});
-  });
-});
+var maxConnectionAttempts = 100;
+function ConnectToRabbit(){
+  try{
+    maxConnectionAttempts =- 1;
+    // listening for rabbitmq messages??
+    amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
+      console.log("ERR: ", err);
+      conn.createChannel(function(err, ch) {
+        var q = 'hello';
+        ch.assertQueue(q, {durable: false});
+        console.log(`... [*] Waiting for messages in ${q}. To exit press CTRL+C `);
+        ch.consume(q, function(msg) {
+          console.log(" [x] Received %s", msg.content.toString());
+        }, {noAck: true});
+      });
+    });
+  }catch(err){
+    console.log("Couldn't connect to ampq host: ", err);
+
+    // wait 1 second until trying to connect again
+    if (maxConnectionAttempts > 0){
+      setTimeout(ConnectToRabbit(), 1000);
+    }
+  }
+}
 
 // app.listen(process.env.PORT || 3000);
 app.listen(PORT, HOST);
