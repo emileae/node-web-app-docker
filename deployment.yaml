@@ -3,15 +3,13 @@ kind: Deployment
 metadata:
   name: node-rabbit-site
 spec:
-
-  restartPolicy: Never
-
   replicas: 2
   template:
     metadata:
       labels:
         app: web
     spec:
+      restartPolicy: Never
       containers:
         - name: some-rabbit
           image: rabbitmq:3
