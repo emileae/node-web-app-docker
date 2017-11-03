@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: node-rabbit-site
 spec:
+
+  restartPolicy: Never
+
   replicas: 2
   template:
     metadata:
