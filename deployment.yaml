@@ -9,7 +9,7 @@ spec:
       labels:
         app: web
     spec:
-      restartPolicy: Never
+      restartPolicy: Always
       containers:
         - name: some-rabbit
           image: rabbitmq:3
