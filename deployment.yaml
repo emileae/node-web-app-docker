@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: node-rabbit-site
 spec:
-  replicas: 1
+  replicas: 2
   template:
     metadata:
       labels:
@@ -19,3 +19,5 @@ spec:
           image: emiru84/node-web-app:latest
           ports:
             - containerPort: 3000
+        - name: rabbit-listener
+          image: emiru84/node-rabbit-listener
