@@ -9,6 +9,7 @@ COPY package.json .
 # COPY package.json package-lock.json ./
 
 RUN npm install
+# RUN export RABBIT_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' rabbit-server)"
 
 # Bundle app source
 COPY . .
