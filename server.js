@@ -79,42 +79,42 @@ app.get('/api/v1/rabbit/:message', (req, res) => {
 
 });
 
-var maxConnectionAttempts = 100;
-function ConnectToRabbit(){
-  try{
-    maxConnectionAttempts =- 1;
-    // listening for rabbitmq messages??
-    amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
+// var maxConnectionAttempts = 100;
+// function ConnectToRabbit(){
+//   try{
+//     maxConnectionAttempts =- 1;
+//     // listening for rabbitmq messages??
+//     amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
 
-      console.log("Rabbit result? conn:", conn);  
-      console.log("Rabbit result? err:", err);
+//       console.log("Rabbit result? conn:", conn);  
+//       console.log("Rabbit result? err:", err);
       
-      conn.createChannel(function(err, ch) {
-        var q = 'hello';
-        ch.assertQueue(q, {durable: false});
-        console.log(`... [*] Waiting for messages in ${q}. To exit press CTRL+C `);
-        ch.consume(q, function(msg) {
-          console.log(" [x] Received %s", msg.content.toString());
+//       conn.createChannel(function(err, ch) {
+//         var q = 'hello';
+//         ch.assertQueue(q, {durable: false});
+//         console.log(`... [*] Waiting for messages in ${q}. To exit press CTRL+C `);
+//         ch.consume(q, function(msg) {
+//           console.log(" [x] Received %s", msg.content.toString());
           
-          // fs.writeFile('test-file.txt', msg.content.toString(), function (err) {
-          //   if (err) return console.log(err);
-          //   console.log('wrote test-file.txt');
-          // });
+//           // fs.writeFile('test-file.txt', msg.content.toString(), function (err) {
+//           //   if (err) return console.log(err);
+//           //   console.log('wrote test-file.txt');
+//           // });
 
-        }, {noAck: true});
-      });
-    });
-  }catch(err){
-    console.log("Couldn't connect to ampq host: ", err);
+//         }, {noAck: true});
+//       });
+//     });
+//   }catch(err){
+//     console.log("Couldn't connect to ampq host: ", err);
 
-    // wait 1 second until trying to connect again
-    if (maxConnectionAttempts > 0){
-      setTimeout(ConnectToRabbit(), 1000);
-    }
-  }
-}
-// connect to start listening
-ConnectToRabbit();
+//     // wait 1 second until trying to connect again
+//     if (maxConnectionAttempts > 0){
+//       setTimeout(ConnectToRabbit(), 1000);
+//     }
+//   }
+// }
+// // connect to start listening
+// ConnectToRabbit();
 
 // app.listen(process.env.PORT || 3000);
 app.listen(PORT, HOST);
