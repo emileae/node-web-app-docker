@@ -20,4 +20,4 @@ spec:
           ports:
             - containerPort: 3000
         - name: rabbit-listener
-          image: emiru84/node-rabbit-listener
+          image: emiru84/node-rabbit-listener:latest
