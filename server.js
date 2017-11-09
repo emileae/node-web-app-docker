@@ -17,6 +17,7 @@ var handleError = (err) => {
 // trying to find how to trigger the running node... doesnt seem to work on locahost
 
 const rabbitHost = process.env.RABBIT_IP || "localhost";//"172.18.0.2";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
+console.log("Connect to rabbit host: ", rabbitHost);
 
 // Enable CORS
 app.use(function(req, res, next) {

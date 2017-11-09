@@ -1,0 +1,23 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: node-rabbit-site
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: some-rabbit
+          image: rabbitmq:3
+          ports:
+            - containerPort: 5672
+        - name: node-web-app
+          image: emiru84/node-web-app:latest
+          ports:
+            - containerPort: 3000
+        - name: rabbit-listener
+          image: emiru84/node-rabbit-listener:latest
