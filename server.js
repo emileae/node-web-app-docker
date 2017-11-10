@@ -37,6 +37,22 @@ app.get('/print/:message', (req, res) => {
   res.send(message);
 })
 
+app.get('/write_json_to_volume', (req, res) => {
+  
+  var content_json = {
+    "test": "jsonfile"
+  }
+  var content = JSON.stringify(content_json);
+  fs.writeFile("/test/test_file.json", content, 'utf8', function (err) {
+    if (err) {
+        return console.log("file write error ", err);
+    }
+    console.log("The file was saved!");
+  });
+
+  res.send("written to FS");
+})
+
 // Testing RabbitMQ
 app.get('/api/v1/rabbit/:message', (req, res) => {
   var rabbitMessage = req.params.message;
