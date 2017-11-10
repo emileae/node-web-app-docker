@@ -28,7 +28,7 @@ app.use(function(req, res, next) {
 
 app.get('/', (req, res) => {
   console.log("testing 1 2 3");
-  res.send("Hello kubernetes world");
+  res.send("Hello kubernetes world.");
 })
 
 app.get('/print/:message', (req, res) => {
@@ -43,7 +43,7 @@ app.get('/write_json_to_volume', (req, res) => {
     "test": "jsonfile"
   }
   var content = JSON.stringify(content_json);
-  fs.writeFile("/test/test_file.json", content, 'utf8', function (err) {
+  fs.writeFile("/data/node/test_file.json", content, 'utf8', function (err) {
     if (err) {
         return console.log("file write error ", err);
     }
@@ -51,6 +51,16 @@ app.get('/write_json_to_volume', (req, res) => {
   });
 
   res.send("written to FS");
+})
+
+app.get('/read_json_file', (req, res) => {
+  fs.readFile('/data/node/test_file.json', 'utf8', function (err,data) {
+    if (err) {
+      return console.log(err);
+    }
+    console.log(data);
+    res.send(data);
+  });
 })
 
 // Testing RabbitMQ
