@@ -1,0 +1,118 @@
+{
+  "FlowScopeModel": {
+    "GeometryModel": {
+      "TubingFile": "tubing.json",
+      "Diam": 0.152,
+      "ROUGH": 5E-5,
+      "NumberOfPipes": 100,
+      "MDTVDFile": "GeometryExampleWell1.md",
+      "TubingProfile": "TubingExampleWell1.tprof"
+    },
+    "AmbientConditions": {
+      "Temperature": [ 280.15, 367.05 ],
+      "TVD": [ 378, 2556.531 ], 
+      "UvalueMultiplier" : 0.0130
+    },
+    "SimulationControl": {
+      "SimulationEndTime": 6000,
+      "TimeIncrement": 200
+    },
+    "FluidModel": {
+      "FluidPackage": "MultiFlashTab",
+      "FluidTableFile": "FluidExampleWell1.h5"
+    },
+    "FrictionTuning": 
+    {
+      "AnnularEntrainmentMultiplier": 
+      {
+        "EventSeries": [   0, 3063600, 3974400 ], 
+        "Values":      [ 2.4,     2.4,     1.9 ]
+      },
+      "DispersedWaterSlipCoef": 0.90,
+      "DispersedWaterVertDrift": 0.15
+    },
+    "ClosedBoundary": {
+      "Placement": "Left"
+    },
+    "PressureBoundary": {
+      "Pressure": {
+        "EventSeries": [ 0,82800,165600],
+        "Values":      [ 5015244.332,4253841.08,4239261.137]
+      },
+      "Temperature": {
+        "EventSeries": [ 0,82800,165600],
+        "Values":      [ 311.4092945,280.6982862,280.7313849]
+      },
+      "Placement": "Right", 
+      "VolumeFraction": {
+        "EventSeries": 0.0,
+        "Gas": 1.0,
+        "Oil": 0.0,
+        "Water": 0.0
+      }
+    },
+    "SourceModel": {
+      "Label": "Gas lift",
+      "Pressure": {
+        "EventSeries": [ 0,82800,165600],
+        "Values":      [ 13302174.81,13066033.04,12805109.78]
+      },
+      "Temperature": {
+        "EventSeries": [ 0,82800,165600],
+        "Values":      [ 274.4256782,280.4531654,280.4879903]
+      },
+      "MeasuredDepthPosition": 2363.5,
+      "MassFractionSTP":{
+        "EventSeries": [ 0,82800,165600],
+        "Gas": [1,1,1],
+        "Oil": [0,0,0],
+        "Water": [0,0,0]
+      },
+      "TotalMassFlow":{
+        "EventSeries": [ 0,82800,165600],
+        "Values": [ 0.772631843,0,0]
+      }
+    },
+    "WellModel": {
+      "Pressure": {
+        "EventSeries": [           0,     2649600,     2732400],
+        "Values":      [ 25000000.00, 25000000.00, 23000000.00]
+      },
+      "Temperature": {
+        "EventSeries": [      0, 2980800], 
+        "Values":      [ 368.65,  368.85]
+      },
+      "MeasuredDepthPosition": 2647.5,
+      "MassFractionSTP":{
+        "Gas":         [ 0.000,   0.000],
+        "Oil":         [ 0.900,   0.900],
+        "Water":       [ 0.100,   0.100],
+        "EventSeries": [     0, 2649600]
+      },
+      "Production": {
+        "IPR": "Vogels",
+        "Qmax": {
+          "Values":      [ 0.001,   0.001],
+          "EventSeries": [     0, 2649600]
+        },
+        "phase": "oil"
+      }
+    },
+    "Valve": {
+      "MeasuredDepthPosition": 400,
+      "Area": 0.019,
+      "MinimumArea": 0.000001,
+      "OpeningEventSeries": {
+        "EventSeries": [ 0,82800],
+        "Opening": [ 0.30958984,0]
+      },
+      "CV-File": "WellheadChoke_tuned.cv",
+      "CD": 1.0
+    },
+    "Output": {
+      "DTPlot": 10,
+      "OutputVariables": "Temperature, Total mass flow, Pressure",
+      "OutputVariables": "U_Mix, Total mass flow, Pressure, Total specific mass"
+    }
+  }
+}

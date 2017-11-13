@@ -1,7 +1,18 @@
+// node built-in
 const fs = require('fs');
+var path = require('path');
 
+// express
 const express = require('express');
-const amqp = require('amqplib/callback_api');
+
+// rabbitmq client
+// const amqp = require('amqplib/callback_api');
+const amqp = require('amqplib');
+
+// npm libs
+const formidable = require('formidable');
+const axios = require('axios');
+
 const app = express();
 
 const PORT = 3000;
@@ -26,6 +37,64 @@ app.use(function(req, res, next) {
   next();
 });
 
+// RabbitMQ
+const connectToRabbit = () => {
+  return amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
+    if (conn){
+      return conn;
+    }else{
+      throw "couldn't connect to RabbitMQ conn is falsy";
+      console.log(`couldn't connect to RabbitMQ`);
+      return undefined;
+    }
+
+  });
+}
+
+// conn: provide a cpnnection to the rabbit server, use connectToRabbit()
+// q:  provide a q = the rabbit queue name/string
+// message: provide the message to send via rabbit
+const sendRabbitMessage = (conn, q, message) => {
+  
+  conn.createChannel()
+  .then((ch)=>{
+    ch.assertQueue(q, {durable: false});
+    // Note: on Node 6 Buffer.from(msg) should be used
+    ch.sendToQueue(q, new Buffer(message));
+    console.log(`[x] Sent ${message} on queue ${q}`);
+  }).catch((err)=>{
+    console.log("error sendRabbitMessage: ", err);
+  })
+
+  // conn.createChannel(function(err, ch) {
+  //   ch.assertQueue(q, {durable: false});
+  //   // Note: on Node 6 Buffer.from(msg) should be used
+  //   ch.sendToQueue(q, new Buffer(rabbitMessage));
+  //   console.log(" [x] Sent %s", rabbitMessage);
+  // });
+
+  setTimeout(function() {
+    conn.close();
+  }, 500);
+}
+
+const connectAndSendRabbitMessage = (message, q) => {
+  connectToRabbit()
+  .then((conn)=>{
+    if (conn){
+      sendRabbitMessage(conn, q, message);
+    }else{
+      console.log("There was no connection");
+    }
+  }).catch((err)=>{
+    console.log("error: ", err);
+  })
+}
+
+
+
+// Routes
+
 app.get('/', (req, res) => {
   console.log("testing 1 2 3");
   res.send("Hello kubernetes world.");
@@ -43,7 +112,10 @@ app.get('/write_json_to_volume', (req, res) => {
     "test": "jsonfile"
   }
   var content = JSON.stringify(content_json);
-  fs.writeFile("/data/node/test_file.json", content, 'utf8', function (err) {
+
+  var writeDir = path.join(__dirname, '/data/node');
+
+  fs.writeFile(writeDir + "/test_file.json", content, 'utf8', function (err) {
     if (err) {
         return console.log("file write error ", err);
     }
@@ -53,8 +125,10 @@ app.get('/write_json_to_volume', (req, res) => {
   res.send("written to FS");
 })
 
-app.get('/read_json_file', (req, res) => {
-  fs.readFile('/data/node/test_file.json', 'utf8', function (err,data) {
+app.get('/read_file', (req, res) => {
+  var filename = req.query.filename;
+  var pathName = path.join(__dirname + '/data/node/' + filename);
+  fs.readFile(pathName, 'utf8', function (err,data) {
     if (err) {
       return console.log(err);
     }
@@ -62,6 +136,64 @@ app.get('/read_json_file', (req, res) => {
     res.send(data);
   });
 })
+
+
+
+// Form to upload a file
+app.get('/file_upload', (req, res)=>{
+  res.sendFile(path.join(__dirname + '/templates/file_upload.html'));
+});
+
+// File upload handler
+app.post('/upload_file', (req, res)=>{
+  console.log("HANDLE FILE UPLOAD");
+
+  var filename = null;
+
+  // create an incoming form object
+  var form = new formidable.IncomingForm();
+
+  // store all uploads in the /uploads directory
+  form.uploadDir = path.join(__dirname, '/data/node');
+  console.log(`form.uploadDir ${form.uploadDir}`);
+
+  // every time a file has been uploaded successfully,
+  // rename it to it's orignal name
+  form.on('file', function(field, file) {
+    filename = file.name;
+    fs.rename(file.path, path.join(form.uploadDir, file.name));
+    console.log(`rename files`);
+  });
+
+  // log any errors that occur
+  form.on('error', function(err) {
+    console.log('An error has occured: \n' + err);
+  });
+
+  // once all the files have been uploaded, send a response to the client
+  form.on('end', function() {
+    console.log("Done uploading...");
+    res.end('success');
+
+    // tell rabbit that the file has been uploaded
+    connectAndSendRabbitMessage(filename, "ADDED_FILE_INPUT");
+
+  });
+
+  // parse the incoming request containing the form data
+  form.parse(req);
+
+});
+
+
+
+
+
+
+
+
+
+
 
 // Testing RabbitMQ
 app.get('/api/v1/rabbit/:message', (req, res) => {
@@ -142,6 +274,15 @@ app.get('/api/v1/rabbit/:message', (req, res) => {
 // }
 // // connect to start listening
 // ConnectToRabbit();
+
+
+
+
+
+
+
+
+
 
 // app.listen(process.env.PORT || 3000);
 app.listen(PORT, HOST);
