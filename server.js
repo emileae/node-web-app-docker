@@ -18,6 +18,9 @@ const app = express();
 const PORT = 3000;
 const HOST = '0.0.0.0';
 
+// Volume path
+const volumePath = "/site/case"; // path.join(__dirname, '/data/node');
+
 var handleError = (err) => {
   console.log("ERROR: ", err);
 }
@@ -27,7 +30,7 @@ var handleError = (err) => {
 // seems to work since it starts listening
 // trying to find how to trigger the running node... doesnt seem to work on locahost
 
-const rabbitHost = process.env.RABBIT_IP || "localhost";//"172.18.0.2";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
+const rabbitHost = process.env.RABBIT_IP || "rabbit";//"172.18.0.2";//"localhost";// rabbitmq'd docker host, I dont think this has anything to do with the container ip
 console.log("Connect to rabbit host: ", rabbitHost);
 
 // Enable CORS
@@ -55,10 +58,10 @@ const connectToRabbit = () => {
 // q:  provide a q = the rabbit queue name/string
 // message: provide the message to send via rabbit
 const sendRabbitMessage = (conn, q, message) => {
-  
+  console.log("sending rabbit message");
   conn.createChannel()
   .then((ch)=>{
-    ch.assertQueue(q, {durable: false});
+    ch.assertQueue(q, {durable: true});// durable was false
     // Note: on Node 6 Buffer.from(msg) should be used
     ch.sendToQueue(q, new Buffer(message));
     console.log(`[x] Sent ${message} on queue ${q}`);
@@ -79,9 +82,11 @@ const sendRabbitMessage = (conn, q, message) => {
 }
 
 const connectAndSendRabbitMessage = (message, q) => {
+  console.log("... trying to connect to rabbit server");
   connectToRabbit()
   .then((conn)=>{
     if (conn){
+      console.log("connected to rabbit!");
       sendRabbitMessage(conn, q, message);
     }else{
       console.log("There was no connection");
@@ -113,9 +118,7 @@ app.get('/write_json_to_volume', (req, res) => {
   }
   var content = JSON.stringify(content_json);
 
-  var writeDir = path.join(__dirname, '/data/node');
-
-  fs.writeFile(writeDir + "/test_file.json", content, 'utf8', function (err) {
+  fs.writeFile(volumePath + "/test_file.json", content, 'utf8', function (err) {
     if (err) {
         return console.log("file write error ", err);
     }
@@ -127,7 +130,7 @@ app.get('/write_json_to_volume', (req, res) => {
 
 app.get('/read_file', (req, res) => {
   var filename = req.query.filename;
-  var pathName = path.join(__dirname + '/data/node/' + filename);
+  var pathName = volumePath + filename;
   fs.readFile(pathName, 'utf8', function (err,data) {
     if (err) {
       return console.log(err);
@@ -154,7 +157,7 @@ app.post('/upload_file', (req, res)=>{
   var form = new formidable.IncomingForm();
 
   // store all uploads in the /uploads directory
-  form.uploadDir = path.join(__dirname, '/data/node');
+  form.uploadDir = volumePath;
   console.log(`form.uploadDir ${form.uploadDir}`);
 
   // every time a file has been uploaded successfully,
@@ -188,6 +191,51 @@ app.post('/upload_file', (req, res)=>{
 
 
 
+
+// Testing RabbitMQ + Flowscope
+app.get('/flowscope/rabbit/1', (req, res) => {
+
+  //"ExampleWell1.json"
+  var inputFilename = req.query.input_filename;
+
+  console.log("lets try to connect to the flow scope...", inputFilename);
+  // var rabbitMessage = `{ "jsonrpc": "2.0", "method": "useinputfile", "params": { "InputFile" : ${inputFilename} }`;
+  console.log("rabbit message: ", rabbitMessage);
+  console.log("--------------------------------------");
+  var rabbitMessage = JSON.stringify({ "jsonrpc": "2.0", "method": "useinputfile", "params": { "InputFile" : "ExampleWell1.json"} });
+
+  try{
+    connectAndSendRabbitMessage(rabbitMessage, 'adminqueue');
+    res.send('sent');
+  }catch(err){
+    console.log("failed to connect to ampq", err);
+    res.send(`failed to send rabbit message: ${rabbitMessage}`);
+    res.send('not sent - err');
+  }
+
+});
+// Testing RabbitMQ + Flowscope
+app.get('/flowscope/rabbit/2', (req, res) => {
+  
+    //"ExampleWell1.json"
+    var inputFilename = req.query.input_filename;
+  
+    console.log("lets try to connect to the flow scope...", inputFilename);
+    // var rabbitMessage = `{ "jsonrpc": "2.0", "method": "useinputfile", "params": { "InputFile" : ${inputFilename} }`;
+    console.log("rabbit message: ", rabbitMessage);
+    console.log("--------------------------------------");
+    var rabbitMessage = JSON.stringify({ "jsonrpc": "2.0", "method": "useinputfile", "params": { "InputFile" : "/ExampleWell1.json"} });
+  
+    try{
+      connectAndSendRabbitMessage(rabbitMessage, 'adminqueue');
+      res.send('sent');
+    }catch(err){
+      console.log("failed to connect to ampq", err);
+      res.send(`failed to send rabbit message: ${rabbitMessage}`);
+      res.send('not sent - err');
+    }
+  
+  });
 
 
 
