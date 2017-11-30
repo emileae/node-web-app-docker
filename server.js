@@ -61,6 +61,9 @@ const sendRabbitMessage = (conn, q, message) => {
   console.log("sending rabbit message");
   conn.createChannel()
   .then((ch)=>{
+
+    
+
     ch.assertQueue(q, {durable: true});// durable was false
     // Note: on Node 6 Buffer.from(msg) should be used
     ch.sendToQueue(q, new Buffer(message));
