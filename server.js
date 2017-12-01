@@ -40,6 +40,12 @@ app.use(function(req, res, next) {
   next();
 });
 
+function generateUuid() {
+  return Math.random().toString() +
+         Math.random().toString() +
+         Math.random().toString();
+}
+
 // RabbitMQ
 const connectToRabbit = () => {
   return amqp.connect(`amqp://${rabbitHost}`, function(err, conn) {
@@ -62,11 +68,22 @@ const sendRabbitMessage = (conn, q, message) => {
   conn.createChannel()
   .then((ch)=>{
 
-    
+    var ex = 'inputchanges';
+    var routing_key = 'FlowScopeConsumer';
 
-    ch.assertQueue(q, {durable: true});// durable was false
+    ch.assertExchange(ex, 'direct', {durable: true});
+
+    // Sending directly to a queue
+    // ch.assertQueue(q, {durable: true});// durable was false
     // Note: on Node 6 Buffer.from(msg) should be used
-    ch.sendToQueue(q, new Buffer(message));
+    // ch.sendToQueue(q, new Buffer(message));
+
+    var corr = generateUuid();
+
+    // sending to an exchange
+    // replyTo is the name of the queue that is listening
+    ch.publish(ex, routing_key, new Buffer(message), { correlationId: corr, replyTo: 'FLOWSCOPE_RESULTS' });
+
     console.log(`[x] Sent ${message} on queue ${q}`);
   }).catch((err)=>{
     console.log("error sendRabbitMessage: ", err);
@@ -143,7 +160,88 @@ app.get('/read_file', (req, res) => {
   });
 })
 
+// RPC client code
 
+app.get('/flowscope/rpc', (req, res) => {
+
+    var ex = 'inputchanges';
+    var send_key = 'FlowScopeConsumer';
+    var reply_key = 'FlowScopeProducer';
+    var message = '{ "jsonrpc": "2.0", "method": "useinputfile", "params": { "InputFile" : "ExampleWell1.json"} }';
+    var corr = generateUuid();
+    console.log('--> generated uuid ', corr);
+
+    var ch = undefined;// keep a global scoped variable to refer to channel in subsequent requests
+    var connection = undefined;
+
+    connectToRabbit()
+    .then((conn)=>{
+      connection = conn;
+      if (conn){
+        console.log("connected to rabbit!");
+        // sendRabbitMessage(conn, q, message);
+      }else{
+        console.log("There was no connection");
+      }
+
+      console.log('--> made rpc connection');
+
+      return conn.createChannel();
+
+    })
+    .then((channel)=>{
+
+      ch = channel;
+        
+      console.log('--> created rpc channel');
+
+      ch.assertExchange(ex, 'direct', {durable: true});
+
+      console.log('--> exchange asserted');
+
+      return ch.assertQueue('', {exclusive: true});
+
+    }).then((q) => {
+      console.log('--> queue asserted callback');
+
+      ch.bindQueue(q.queue, ex, reply_key);
+
+      console.log('--> bindQueue called with reply_key');
+
+      ch.consume(q.queue, function(msg) {
+        console.log('--> channel consume callback ', msg.content.toString());
+        if (msg.properties.correlationId == corr) {
+          console.log(' [.] Got %s', msg.content.toString());
+          setTimeout(function() { 
+            connection.close(); 
+          }, 500);
+        }
+      }, {noAck: true});
+
+      // ch.sendToQueue('rpc_queue',
+      // new Buffer(num.toString()),
+      // { correlationId: corr, replyTo: q.queue });
+
+      // publish to exchange instead of directly to queue
+      ch.publish(ex, send_key, new Buffer(message), { correlationId: corr, replyTo: q.queue });
+    });
+  
+  function generateUuid() {
+    return Math.random().toString() +
+           Math.random().toString() +
+           Math.random().toString();
+  }
+
+  res.send('trying to make rpc connection');
+
+});
+
+
+// Trigger simulator
+app.get('/go_scope', (req, res)=>{
+  connectAndSendRabbitMessage(filename, "ADDED_FILE_INPUT");
+  res.send("triggered simulation")
+});
 
 // Form to upload a file
 app.get('/file_upload', (req, res)=>{
@@ -182,7 +280,7 @@ app.post('/upload_file', (req, res)=>{
     res.end('success');
 
     // tell rabbit that the file has been uploaded
-    connectAndSendRabbitMessage(filename, "ADDED_FILE_INPUT");
+    // connectAndSendRabbitMessage(filename, "ADDED_FILE_INPUT");
 
   });
 
