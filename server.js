@@ -1,6 +1,7 @@
 // node built-in
+const https = require('https');// need this in the /upload_file_url
 const fs = require('fs');
-var path = require('path');
+const path = require('path');
 
 // express
 const express = require('express');
@@ -10,6 +11,7 @@ const express = require('express');
 const amqp = require('amqplib');
 
 // npm libs
+var bodyParser = require('body-parser')
 const formidable = require('formidable');
 const axios = require('axios');
 
@@ -39,6 +41,7 @@ app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   next();
 });
+app.use(bodyParser.json());
 
 function generateUuid() {
   return Math.random().toString() +
@@ -115,7 +118,40 @@ const connectAndSendRabbitMessage = (message, q) => {
     console.log("error: ", err);
   })
 }
+const triggerResultExport = () => {
 
+  console.log("triggering export...");
+
+  var ex = 'result_trigger';
+  var q = 'result_file_path';
+  var msg = '/site/case/ExampleWell1.h5';// this should be the path according to the volume
+
+  connectToRabbit()
+  .then((conn)=>{
+    return conn.createChannel();
+  })
+  .then((ch)=>{
+
+    // working but goes directly to a queue
+    // ch.assertQueue(q, {durable: false});
+    // // Note: on Node 6 Buffer.from(msg) should be used
+    // return ch.sendToQueue(q, new Buffer("bla bla bla emile say bla bla bla"));
+
+    // using an exchange
+
+    ch.assertExchange(ex, 'direct', {durable: false});
+    ch.publish(ex, q, new Buffer(msg));
+    console.log(" [x] Trigger Result Export %s: '%s'", q, msg);
+
+  })
+  .catch((err)=>{
+    console.log("rabbit-sender error: ", err);
+  });
+}
+app.get('/trigger_pika', (req, res) => {
+  triggerResultExport();
+  res.send("trigger pika.");
+})
 
 
 // Routes
@@ -161,7 +197,6 @@ app.get('/read_file', (req, res) => {
 })
 
 // RPC client code
-
 app.get('/flowscope/rpc', (req, res) => {
 
     var ex = 'inputchanges';
@@ -212,8 +247,10 @@ app.get('/flowscope/rpc', (req, res) => {
         console.log('--> channel consume callback ', msg.content.toString());
         if (msg.properties.correlationId == corr) {
           console.log(' [.] Got %s', msg.content.toString());
+          
           setTimeout(function() { 
             connection.close(); 
+            triggerResultExport();// trigger export after closing connection... just in case
           }, 500);
         }
       }, {noAck: true});
@@ -236,6 +273,93 @@ app.get('/flowscope/rpc', (req, res) => {
 
 });
 
+// Send message to python listener
+app.get('/flowscope/h5py', (req, res) => {
+
+  var ex = 'result_trigger';
+  var q = 'result_file_path';
+  var msg = '/usr/src/app/FluidExampleWell1.h5';// this should be the path according to the volume
+
+  connectToRabbit()
+  .then((conn)=>{
+    return conn.createChannel();
+  })
+  .then((ch)=>{
+
+    // working but goes directly to a queue
+    // ch.assertQueue(q, {durable: false});
+    // // Note: on Node 6 Buffer.from(msg) should be used
+    // return ch.sendToQueue(q, new Buffer("bla bla bla emile say bla bla bla"));
+
+    // using an exchange
+
+    ch.assertExchange(ex, 'direct', {durable: false});
+    ch.publish(ex, q, new Buffer(msg));
+    console.log(" [x] Sent %s: '%s'", q, msg);
+
+  })
+  .catch((err)=>{
+    console.log("rabbit-sender error: ", err);
+  });
+  
+    //   var ex = 'result_ready';
+    //   var send_key = 'send_results_ready';
+    //   var reply_key = 'receive_results_Ready';
+    //   var message = 'results ready yo';
+    //   var corr = generateUuid();
+    //   console.log('--> generated uuid ', corr);
+  
+    //   var ch = undefined;// keep a global scoped variable to refer to channel in subsequent requests
+    //   var connection = undefined;
+  
+    //   connectToRabbit()
+    //   .then((conn)=>{
+    //     connection = conn;
+    //     if (conn){
+    //       console.log("connected to rabbit!");
+    //       // sendRabbitMessage(conn, q, message);
+    //     }else{
+    //       console.log("There was no connection");
+    //     }
+  
+    //     console.log('--> made potential connection');
+  
+    //     return conn.createChannel();
+  
+    //   })
+    //   .then((channel)=>{
+  
+    //     ch = channel;
+          
+    //     console.log('--> created python channel');
+  
+    //     ch.assertExchange(ex, 'direct', {durable: true});
+  
+    //     console.log('--> exchange asserted');
+  
+    //     return ch.assertQueue('yello');
+  
+    //   }).then((q) => {
+    //     console.log('--> queue asserted callback --> python queue', q.queue);
+  
+    //     ch.bindQueue(q.queue, ex, reply_key);
+  
+    //     console.log('--> bindQueue called with reply_key');
+
+    //     // publish to exchange instead of directly to queue
+    //     ch.publish(ex, send_key, new Buffer(message), { correlationId: corr, replyTo: q.queue });
+    //   });
+    
+    // function generateUuid() {
+    //   return Math.random().toString() +
+    //          Math.random().toString() +
+    //          Math.random().toString();
+    // }
+  
+    res.send('trying to make python connection');
+  
+  });
+
 
 // Trigger simulator
 app.get('/go_scope', (req, res)=>{
@@ -247,6 +371,121 @@ app.get('/go_scope', (req, res)=>{
 app.get('/file_upload', (req, res)=>{
   res.sendFile(path.join(__dirname + '/templates/file_upload.html'));
 });
+
+const download = (url, tempFilepath, filepath, callback) => {
+  var tempFile = fs.createWriteStream(tempFilepath);
+  tempFile.on('open', function(fd) {
+    console.log("opened tempFile...");
+    console.log("url to open: ", url);
+      https.request(url, function(res) {
+          console.log("requested url...", res);
+          res.on('data', function(chunk) {
+              console.log("write chunk...");
+              tempFile.write(chunk);
+          }).on('end', function() {
+              console.log("end writing...");
+              tempFile.end();
+              fs.renameSync(tempFile.path, filepath);
+              return callback(filepath);
+          });
+      }, function(err) {
+        console.log("error with http: ", err);
+      });
+  });
+}
+app.post('/upload_file_url', (req, res)=>{
+
+  var localVolumePath = path.join(__dirname, volumePath);
+
+  console.log("req", req.body);
+
+  // var filename = req.query.filename;// GET
+  var filename = req.body.filename;// POST
+
+  // ------------------------------
+  //   READ THIS !!!!!!
+  // ------------------------------
+  // check that the pathname is correct for a Kubernetes Volume vs local filesystem... seems to be different K8s doesnt like __dirname...
+
+  // TODO fix this when deployed to Kubernetes
+
+  var pathName = volumePath + '/' + filename;
+  // var pathName = localVolumePath + '/' + filename;
+  // var url = req.query.downloadUrl;// GET
+  var url = req.body.downloadUrl;// POST
+  
+  // a more direct approach
+  var file = fs.createWriteStream(pathName);
+  console.log("url: ", url);
+
+  // url = "https://firebasestorage.googleapis.com/v0/b/turb-flux-ae-s.appspot.com/o/files%2FSg4O5gNq8WTsN3z6Lka8MeCAI9c2%2Fwell1%2FFluidwell1.h5?alt=media&token=fd942c13-306b-4044-8478-52c58b3e65f7";
+
+  axios.request({
+    responseType: 'arraybuffer',
+    url: url,
+    method: 'get'
+  }).then((result) => {
+    fs.writeFileSync(pathName, result.data);
+  })
+  .catch(err=>{
+    console.log('axios file upload error -> ', err);
+  });
+
+  res.send('busy downloading / saving')
+
+  // this works with JSON.stringify and json files... seems to not work with h5 files
+  // axios.get(url)
+  // .then(function (response) {
+  //   console.log("get file response -->");
+  //   console.log(response.data);
+  //   file.write(response.data);
+  //   file.end();
+  // })
+  // .catch(function (error) {
+  //   console.log("h5 server error -->");
+  //   console.log(error);
+  // });
+
+
+  // var request = https.get(url, (response) => {
+  //   // response.pipe(file);
+  //   // file.end();
+  //   // console.log("-- response? --> ", response);
+
+  //   console.log("-----------------------------------------");
+
+  //   response.setEncoding('utf8');
+  //   response.on('data', (body) => {
+  //       console.log(body);
+  //   });
+
+  //   response.on('error', (err) => {
+  //     console.error('response.on error ' + err.message);
+  //   });
+
+  //   // response.on('data', function(chunk) {
+  //   //   console.log("string chunk: ", chunk.toString('utf8'));
+  //   //   var textChunk = chunk.toString('utf8');
+  //   //   // process utf8 text chunk
+  //   // });
+    
+  //   file.write(response);
+  //   file.end();
+
+  // });
+
+
+  // using the download function above
+  // const acknowledged = (filepath) => {
+  //   console.log("acknowledged... ", filepath);
+  // }
+
+  // // var file = fs.createWriteStream("file.jpg");
+  // // var request = http.get("http://i3.ytimg.com/vi/J---aiyznGQ/mqdefault.jpg", function(response) {
+  // //   response.pipe(file);
+  // // });
+  // download(url, pathName, pathName, acknowledged);
+})
 
 // File upload handler
 app.post('/upload_file', (req, res)=>{
@@ -427,12 +666,142 @@ app.get('/api/v1/rabbit/:message', (req, res) => {
 
 
 
+app.get('/h5serv', (req, res) => {
+  axios.get("http://localhost:5000")
+  .then(function (response) {
+    console.log("h5 server response -->");
+    console.log(response);
+  })
+  .catch(function (error) {
+    console.log("h5 server error -->");
+    console.log(error);
+  });
+  res.send("trying to test h5serv... vanilla")
+})
+
+app.get('/h5serv/headers', (req, res) => {
+  axios({
+    method: 'get',
+    url: 'http://localhost:5000',
+    headers: {'Host': `localhost:5000`}
+  }).then((response)=>{
+    console.log(JSON.stringify(response))
+  }).catch(error => {
+    console.log("--> error")
+    console.log(JSON.stringify(error));
+  });
+})
+
+app.get('/h5serv/qp', (req, res) => {
+  var filename = req.query.filename;
+  axios.get(`http://localhost:5000?host=${filename}`)
+  .then(function (response) {
+    console.log("h5 server response -->");
+    console.log(JSON.stringify(response));
+  })
+  .catch(function (error) {
+    console.log("h5 server error -->");
+    console.log(error);
+  });
+  res.send("trying to test h5serv qp")
+})
+
+app.get('/h5serv/headers/a', (req, res) => {
+  var filename = req.query.filename;
+  axios({
+    method: 'get',
+    url: 'http://localhost:5000',
+    headers: {'Host': `${filename}.localhost:5000`}
+  }).then((response)=>{
+    console.log(JSON.stringify(response))
+  }).catch(error => {
+    console.log("--> error")
+    console.log(JSON.stringify(error));
+  });
+
+  res.send("testing h5serv with host header & domain");
+
+});
+
+app.get('/h5serv/headers/b', (req, res) => {
+  var filename = req.query.filename;
+  axios({
+    method: 'get',
+    url: 'http://localhost:5000',
+    headers: {'Host': `${filename}`}
+  }).then((response)=>{
+    console.log(JSON.stringify(response))
+  }).catch(error => {
+    console.log("--> error")
+    console.log(JSON.stringify(error));
+  });
+
+  res.send("testing h5serv with host header & domain");
+
+});
+
+app.get('/h5serv/headers/qp', (req, res) => {
+  var filename = req.query.filename;
+  axios({
+    method: 'get',
+    url: `http://localhost:5000?host=${filename}`,
+    headers: {'Host': `${filename}.localhost:5000`}
+  }).then((response)=>{
+    console.log(JSON.stringify(response))
+  }).catch(error => {
+    console.log("--> error")
+    console.log(JSON.stringify(error));
+  });
+
+  res.send("trying to test h5serv with host header & qp");
+
+});
 
 
+app.get('/h5serv/datasets/qp', (req, res) => {
+  var filename = req.query.filename;
+  axios.get(`http://localhost:5000/datasets?host=${filename}`)
+  .then(function (response) {
+    console.log("h5 server response -->");
+    console.log(JSON.stringify(response));
+  })
+  .catch(function (error) {
+    console.log("h5 server error -->");
+    console.log(JSON.stringify(error));
+  });
+  res.send("trying to test h5serv dataset with qp");
+})
+
+app.get('/h5serv/datasets/header', (req, res) => {
+  var filename = req.query.filename;
+  axios({
+    method: 'get',
+    url: `http://localhost:5000/datasets?host=${filename}`,
+    headers: {'Host': `${filename}.localhost:5000`}
+  }).then((response)=>{
+    console.log(JSON.stringify(response))
+  }).catch(error => {
+    console.log("--> error")
+    console.log(JSON.stringify(error));
+  });
+  res.send("trying to test h5serv dataset with qp");
+})
+
+app.get('/h5serv/datasets/header', (req, res) => {
+  var filename = req.query.filename;
+  axios({
+    method: 'get',
+    url: `http://${filename}.localhost:5000/datasets`,
+    headers: {'Host': `${filename}.localhost:5000`}
+  }).then((response)=>{
+    console.log(JSON.stringify(response))
+  }).catch(error => {
+    console.log("--> error")
+    console.log(JSON.stringify(error));
+  });
+  res.send("trying to test h5serv dataset with domain");
+})
 
 
-
-
-// app.listen(process.env.PORT || 3000);
 app.listen(PORT, HOST);
 console.log(`Running on http://${HOST}:${PORT}`);
