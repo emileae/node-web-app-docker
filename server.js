@@ -118,13 +118,13 @@ const connectAndSendRabbitMessage = (message, q) => {
     console.log("error: ", err);
   })
 }
-const triggerResultExport = () => {
+const triggerResultExport = (wellId, userId) => {
 
   console.log("triggering export...");
 
   var ex = 'result_trigger';
   var q = 'result_file_path';
-  var msg = '/site/case/ExampleWell1.h5';// this should be the path according to the volume
+  var msg = {"filePath": `/site/case/${wellId}.h5`, "wellId": wellId, "userId": userId};// this should be the path according to the volume
 
   connectToRabbit()
   .then((conn)=>{
@@ -140,7 +140,7 @@ const triggerResultExport = () => {
     // using an exchange
 
     ch.assertExchange(ex, 'direct', {durable: false});
-    ch.publish(ex, q, new Buffer(msg));
+    ch.publish(ex, q, new Buffer(JSON.stringify(msg)));
     console.log(" [x] Trigger Result Export %s: '%s'", q, msg);
 
   })
@@ -148,10 +148,11 @@ const triggerResultExport = () => {
     console.log("rabbit-sender error: ", err);
   });
 }
-app.get('/trigger_pika', (req, res) => {
-  triggerResultExport();
-  res.send("trigger pika.");
-})
+
+// app.get('/trigger_pika', (req, res) => {
+//   triggerResultExport();
+//   res.send("trigger pika.");
+// })
 
 
 // Routes
@@ -197,14 +198,18 @@ app.get('/read_file', (req, res) => {
 })
 
 // RPC client code
-app.get('/flowscope/rpc', (req, res) => {
+app.post('/flowscope/rpc', (req, res) => {
+    // var inputFilename = req.query.inputFilename;// for a get request
+    var inputFilename = req.body.inputFilename;// for a post request
+    var wellId = req.body.wellId;// for a post request
+    var userId = req.body.userId;// for a post request ex = 'inputchanges';
 
-    var ex = 'inputchanges';
+    console.log(`well id: ${wellID} & user id: ${userId}`);
+
     var send_key = 'FlowScopeConsumer';
     var reply_key = 'FlowScopeProducer';
-    var message = '{ "jsonrpc": "2.0", "method": "useinputfile", "params": { "InputFile" : "ExampleWell1.json"} }';
+    var message = `{ "jsonrpc": "2.0", "method": "useinputfile", "params": { "InputFile" : "${inputFilename}.json"} }`;
     var corr = generateUuid();
-    console.log('--> generated uuid ', corr);
 
     var ch = undefined;// keep a global scoped variable to refer to channel in subsequent requests
     var connection = undefined;
@@ -250,7 +255,7 @@ app.get('/flowscope/rpc', (req, res) => {
           
           setTimeout(function() { 
             connection.close(); 
-            triggerResultExport();// trigger export after closing connection... just in case
+            triggerResultExport(wellId, userId);// trigger export after closing connection... just in case
           }, 500);
         }
       }, {noAck: true});
